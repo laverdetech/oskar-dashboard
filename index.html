@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oskar - Vedomostný Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        html { scroll-behavior: smooth; }
+        body {
+            background-image:
+                radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.1) 0px, transparent 50%),
+                radial-gradient(at 97% 21%, hsla(38, 98%, 49%, 0.1) 0px, transparent 50%),
+                radial-gradient(at 52% 99%, hsla(355, 98%, 61%, 0.1) 0px, transparent 50%),
+                radial-gradient(at 10% 29%, hsla(256, 96%, 61%, 0.1) 0px, transparent 50%),
+                radial-gradient(at 97% 96%, hsla(38, 60%, 62%, 0.1) 0px, transparent 50%),
+                radial-gradient(at 33% 50%, hsla(222, 67%, 73%, 0.1) 0px, transparent 50%),
+                radial-gradient(at 79% 53%, hsla(343, 68%, 63%, 0.1) 0px, transparent 50%);
+            background-color: #111827;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        /* Custom Scroll Animations (Replacing Framer Motion) */
+        .reveal {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .scale-in {
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .scale-in.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Map Hover Transitions */
+        .map-region {
+            transition: fill 0.2s, transform 0.2s;
+            transform-origin: center;
+        }
+        .map-region:hover {
+            fill: rgba(250, 204, 21, 1) !important;
+            transform: scale(1.02);
+        }
+
+        /* Mobile Nav Transitions */
+        #mobile-nav {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            transform: translateY(-10px);
+            opacity: 0;
+            pointer-events: none;
+        }
+        #mobile-nav.open {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="text-white font-sans min-h-screen antialiased">
+
+    <!-- Mobile Header -->
+    <header class="lg:hidden sticky top-0 z-40 bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 p-4 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <svg class="text-yellow-400 w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+            <h1 class="font-bold text-lg">Oskar Dashboard</h1>
+        </div>
+        <button id="mobile-menu-btn" class="p-2 focus:outline-none">
+            <svg id="menu-icon" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18 M3 6h18 M3 18h18" /></svg>
+            <svg id="close-icon" class="w-6 h-6 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18 M6 6l12 12" /></svg>
+        </button>
+    </header>
+
+    <!-- Mobile Nav Panel -->
+    <div id="mobile-nav" class="lg:hidden fixed top-16 left-0 right-0 z-30 bg-gray-900/95 backdrop-blur-lg border-b border-gray-800 absolute">
+        <nav id="mobile-nav-menu" class="flex flex-col space-y-2 p-4">
+            <!-- Populated via JS -->
+        </nav>
+    </div>
+
+    <div class="flex">
+        <!-- Desktop Sidebar -->
+        <aside class="hidden lg:block w-72 h-screen sticky top-0 border-r border-gray-800">
+            <div class="p-6">
+                <div class="flex items-center gap-2">
+                    <svg class="text-yellow-400 w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                    <h1 class="font-bold text-xl">Oskar Dashboard</h1>
+                </div>
+                <div class="relative mt-6">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.35-4.35 M16.65 10.35a6.3 6.3 0 1 1-12.6 0 6.3 6.3 0 0 1 12.6 0z" /></svg>
+                    <input type="text" placeholder="Vyhľadať..." class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:ring-1 focus:ring-yellow-400" />
+                </div>
+            </div>
+            <nav id="desktop-nav-menu" class="flex flex-col space-y-2 p-4">
+                <!-- Populated via JS -->
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1">
+            
+            <!-- Hero Section -->
+            <section id="úvod" class="text-center py-20 px-4">
+                <h1 class="reveal text-5xl md:text-7xl font-bold text-white mb-4 tracking-tighter" style="transition-delay: 0.1s">
+                    Komplexná Analýza Mena <span class="text-yellow-400">Oskar</span>
+                </h1>
+                <p class="reveal text-xl text-gray-300 mb-8 max-w-3xl mx-auto" style="transition-delay: 0.3s">
+                    Kultúrny, Historický a Mystický Rozbor
+                </p>
+                <p class="reveal text-gray-400 max-w-2xl mx-auto mb-12" style="transition-delay: 0.5s">
+                    Vitajte v interaktívnom vedomostnom prostredí venovanom menu Oskar. Preskúmajte jeho pôvod, cestu dejinami a skryté symbolické významy.
+                </p>
+                
+                <div class="scale-in max-w-xl mx-auto" style="transition-delay: 0.8s">
+                    <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-8 shadow-lg relative">
+                        <h3 class="text-lg font-semibold text-white mb-6">Mapa Vzťahov</h3>
+                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-400 text-gray-900 font-bold px-6 py-3 rounded-full z-10">Oskar</div>
+                        
+                        <svg class="absolute top-0 left-0 w-full h-full" viewBox="0 0 200 120">
+                            <line x1="100" y1="60" x2="40" y2="30" stroke="#4a5568" stroke-width="1"/>
+                            <line x1="100" y1="60" x2="160" y2="30" stroke="#4a5568" stroke-width="1"/>
+                            <line x1="100" y1="60" x2="40" y2="90" stroke="#4a5568" stroke-width="1"/>
+                            <line x1="100" y1="60" x2="160" y2="90" stroke="#4a5568" stroke-width="1"/>
+                        </svg>
+
+                        <div class="relative grid grid-cols-2 gap-y-16">
+                            <div class="bg-gray-700/80 px-4 py-2 rounded-lg backdrop-blur-sm z-10 w-max mx-auto">Pôvod</div>
+                            <div class="bg-gray-700/80 px-4 py-2 rounded-lg backdrop-blur-sm z-10 w-max mx-auto">Archetyp</div>
+                            <div class="bg-gray-700/80 px-4 py-2 rounded-lg backdrop-blur-sm z-10 w-max mx-auto">História</div>
+                            <div class="bg-gray-700/80 px-4 py-2 rounded-lg backdrop-blur-sm z-10 w-max mx-auto">Gematria</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="p-4 md:p-8 lg:p-12 space-y-16">
+                
+                <!-- History Section -->
+                <section id="história" class="reveal">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Kultúrna a historická identita</h2>
+                            <p class="text-gray-400">Časová os a popularita mena v priebehu vekov</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg lg:col-span-2">
+                            <h3 class="font-bold text-white text-lg mb-6">Kľúčové Míľniky</h3>
+                            <div class="relative border-l-2 border-gray-700 pl-8 space-y-12">
+                                <div class="relative group">
+                                    <div class="absolute -left-[38px] top-1.5 w-4 h-4 bg-gray-600 rounded-full border-2 border-gray-800 group-hover:bg-yellow-400 transition-colors"></div>
+                                    <h4 class="font-semibold text-yellow-400">18. storočie</h4>
+                                    <p class="text-white">Literárny pôvod</p>
+                                    <p class="text-gray-400 text-sm mt-1">Meno sa dostáva do európskeho povedomia vďaka "Ossianovskej poézii" Jamesa Macphersona.</p>
+                                </div>
+                                <div class="relative group">
+                                    <div class="absolute -left-[38px] top-1.5 w-4 h-4 bg-gray-600 rounded-full border-2 border-gray-800 group-hover:bg-yellow-400 transition-colors"></div>
+                                    <h4 class="font-semibold text-yellow-400">zač. 19. storočia</h4>
+                                    <p class="text-white">Kráľovský patronát</p>
+                                    <p class="text-gray-400 text-sm mt-1">Napoleon Bonaparte menuje svojho krstného syna Oscarom, ktorý sa neskôr stáva švédskym kráľom Oskarom I.</p>
+                                </div>
+                                <div class="relative group">
+                                    <div class="absolute -left-[38px] top-1.5 w-4 h-4 bg-gray-600 rounded-full border-2 border-gray-800 group-hover:bg-yellow-400 transition-colors"></div>
+                                    <h4 class="font-semibold text-yellow-400">1929</h4>
+                                    <p class="text-white">Moderné asociácie</p>
+                                    <p class="text-gray-400 text-sm mt-1">Založenie Cien Akadémie ("Oscary") vytvára trvalú pozitívnu asociáciu s excelentnosťou vo filme.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-lg mb-4">Popularita v Európe</h3>
+                            <p class="text-gray-400 text-sm mb-6">Percentuálny podiel v populácii.</p>
+                            <div class="h-64 relative">
+                                <canvas id="popularityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Etymology Section -->
+                <section id="etymológia" class="reveal">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 0 1 10-10v0a10 10 0 0 1 10 10v0a10 10 0 0 1-10 10v0A10 10 0 0 1 2 12v0Z M12 12a10 10 0 0 0 10-10v0" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Etymológia mena</h2>
+                            <p class="text-gray-400">Duálne korene a ich poetické významy</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg border-t-4 border-t-blue-400">
+                            <div class="flex items-center gap-4">
+                                <svg class="w-8 h-8 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 0 1 10-10v0a10 10 0 0 1 10 10v0a10 10 0 0 1-10 10v0A10 10 0 0 1 2 12v0Z M12 12a10 10 0 0 0 10-10v0" /></svg>
+                                <h3 class="font-bold text-white text-xl">Staronórsky pôvod</h3>
+                            </div>
+                            <p class="text-gray-400 mt-4 pl-12">Odvodené od mena <span class="font-semibold text-gray-200">Ásgeirr</span>.</p>
+                            <div class="mt-4 bg-gray-900/50 p-4 rounded-xl text-center">
+                                <p class="text-sm text-gray-400">áss („Boh“) + geirr („kopija“)</p>
+                                <p class="text-2xl font-bold text-blue-400 mt-2">„Božia kopija“</p>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg border-t-4 border-t-emerald-400">
+                             <div class="flex items-center gap-4">
+                                <svg class="w-8 h-8 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 0 1 10-10v0a10 10 0 0 1 10 10v0a10 10 0 0 1-10 10v0A10 10 0 0 1 2 12v0Z M12 12a10 10 0 0 0 10-10v0" /></svg>
+                                <h3 class="font-bold text-white text-xl">Írsky gaelský pôvod</h3>
+                            </div>
+                            <p class="text-gray-400 mt-4 pl-12">Odvodené z mien <span class="font-semibold text-gray-200">Oscur</span> alebo <span class="font-semibold text-gray-200">Osgar</span>.</p>
+                            <div class="mt-4 bg-gray-900/50 p-4 rounded-xl text-center">
+                                <p class="text-sm text-gray-400">os („jeleň“) + cara („milovník“)</p>
+                                <p class="text-2xl font-bold text-emerald-400 mt-2">„Milovník jeleňov“</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Global Presence Section -->
+                <section id="globalita" class="reveal">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.54 15H17a2 2 0 0 0-2 2v4.54" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Globálna stopa</h2>
+                            <p class="text-gray-400">Varianty mena po celom svete</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg lg:col-span-2 relative">
+                            <h3 class="font-bold text-white text-lg mb-4">Interaktívna mapa</h3>
+                            <div class="bg-gray-900/50 rounded-lg h-80 p-4 relative overflow-hidden" id="map-container">
+                                <svg viewBox="0 0 200 100" class="w-full h-full">
+                                    <!-- Background Continents -->
+                                    <path d="M 30 50 C 40 20, 70 20, 80 50 C 70 80, 40 80, 30 50 Z" fill="#374151" />
+                                    <path d="M 40 20 C 50 -10, 100 -10, 110 20 L 120 40 L 90 45 L 60 40 Z" fill="#374151" />
+                                    <path d="M 85 20 L 115 15 L 110 45 L 88 45 Z" fill="#4b5563" />
+                                    <path d="M 115 15 L 160 20 L 155 50 L 110 45 Z" fill="#374151" />
+                                    <path d="M 95 50 L 125 55 L 115 75 L 90 65 Z" fill="#374151" />
+                                    <path d="M 130 70 L 150 75 L 145 85 L 125 80 Z" fill="#374151" />
+
+                                    <!-- Interactive Regions -->
+                                    <path d="M 93 13 L 96 14 L 98 20 L 96 23 L 92 25 L 90 20 L 93 13 Z" fill="rgba(59, 130, 246, 0.7)" stroke="#111827" stroke-width="0.5" class="map-region cursor-pointer" data-name="Škandinávia (Oskar)"/>
+                                    <path d="M 85 24 L 83 23 L 83 28 L 86 30 L 88 28 L 88 25 Z" fill="rgba(16, 185, 129, 0.7)" stroke="#111827" stroke-width="0.5" class="map-region cursor-pointer" data-name="UK & Írsko (Oscar)"/>
+                                    <path d="M 95 25 L 98 22 L 102 24 L 103 29 L 98 32 L 95 30 Z" fill="rgba(59, 130, 246, 0.7)" stroke="#111827" stroke-width="0.5" class="map-region cursor-pointer" data-name="Stredná Európa (Oskar)"/>
+                                    <path d="M 90 30 L 92 32 L 96 35 L 94 38 L 88 36 L 87 31 Z" fill="rgba(16, 185, 129, 0.7)" stroke="#111827" stroke-width="0.5" class="map-region cursor-pointer" data-name="Západná Európa (Oscar)"/>
+                                    <path d="M 85 38 L 87 37 L 89 40 L 85 42 L 83 40 Z" fill="rgba(239, 68, 68, 0.7)" stroke="#111827" stroke-width="0.5" class="map-region cursor-pointer" data-name="Pyrenejský polostrov (Óscar)"/>
+                                    <path d="M 97 34 L 99 33 L 101 38 L 98 42 L 97 38 Z" fill="rgba(16, 185, 129, 0.7)" stroke="#111827" stroke-width="0.5" class="map-region cursor-pointer" data-name="Taliansko (Oscar)"/>
+                                    <path d="M 100 18 L 104 19 L 103 23 L 100 22 Z" fill="rgba(139, 92, 246, 0.7)" stroke="#111827" stroke-width="0.5" class="map-region cursor-pointer" data-name="Fínsko (Oskari)"/>
+                                </svg>
+                                <!-- Custom Tooltip -->
+                                <div id="map-tooltip" class="absolute bg-gray-900/90 text-white text-sm px-3 py-1 rounded-md backdrop-blur-sm pointer-events-none opacity-0 transition-opacity duration-200 z-10" style="bottom: 10px; left: 50%; transform: translateX(-50%);">
+                                    Region
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-lg mb-4">Varianty podľa jazyka</h3>
+                            <div class="relative mb-4">
+                                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.35-4.35 M16.65 10.35a6.3 6.3 0 1 1-12.6 0 6.3 6.3 0 0 1 12.6 0z" /></svg>
+                                <input id="variant-search" type="text" placeholder="Hľadať variant..." class="w-full bg-gray-900/70 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                            </div>
+                            <div id="variants-list" class="space-y-3 h-64 overflow-y-auto pr-2">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Archetype Section -->
+                <section id="archetyp" class="reveal">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16l-4-4-4 4M16 8l-4 4-4-4" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Archetyp mena Oskar</h2>
+                            <p class="text-gray-400">Osobnostný profil a známi nositelia</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-lg mb-4">Profil Osobnosti</h3>
+                            <div class="h-80 relative w-full">
+                                <canvas id="archetypeChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-lg mb-4">Známi Nositelia</h3>
+                            <div id="famous-people-list" class="space-y-4 h-80 overflow-y-auto pr-2">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Gematria Section -->
+                <section id="gematria" class="reveal">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L8 21M14 3l2 18M3 10h18M3 14h18" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Mystický rozmer (Gematria)</h2>
+                            <p class="text-gray-400">Odhalenie skrytých numerických významov</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6" id="gematria-cards">
+                            <h3 class="md:col-span-2 font-bold text-white text-lg">Výpočty v štyroch systémoch</h3>
+                            <!-- Populated via JS -->
+                        </div>
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-lg mb-4">Porovnanie výsledkov</h3>
+                            <div class="h-64 mt-8 relative">
+                                <canvas id="gematriaChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Cosmic Profile Section -->
+                <section id="kozmický-profil" class="reveal border-t-2 border-indigo-500/30 pt-16">
+                    <div class="flex items-center gap-4 mb-10">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Osobný Kontext a Kozmická Identita</h2>
+                            <p class="text-gray-400">Spojenie mena, narodenia a kozmického rytmu</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800/50 backdrop-blur-sm border rounded-2xl p-6 shadow-lg mb-8 bg-indigo-900/10 border-indigo-500/30">
+                        <p class="text-center text-indigo-200">
+                            Táto sekcia skúma, ako sa symbolika mena Oskar prelína s energiami dátumu narodenia – Panna s majstrovskou životnou cestou 22/4.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl shadow-lg lg:col-span-2 overflow-hidden relative">
+                            <div class="p-6">
+                                <h3 class="font-bold text-white text-xl mb-4">Astrologický Profil: Panna</h3>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 px-6 pb-6 text-center">
+                                <div class="bg-gray-900/50 p-3 rounded-lg"><p class="text-3xl">♍</p><p class="text-sm text-gray-400">Panna</p></div>
+                                <div class="bg-gray-900/50 p-3 rounded-lg"><p class="text-3xl">☿</p><p class="text-sm text-gray-400">Merkúr</p></div>
+                                <div class="bg-gray-900/50 p-3 rounded-lg"><p class="text-3xl">🌍</p><p class="text-sm text-gray-400">Zem</p></div>
+                                <div class="bg-gray-900/50 p-3 rounded-lg"><p class="text-3xl">💎</p><p class="text-sm text-gray-400">Sodalit</p></div>
+                                <div class="bg-gray-900/50 p-3 rounded-lg"><p class="text-3xl">🎨</p><p class="text-sm text-gray-400">Zemitá zelená</p></div>
+                                <div class="bg-gray-900/50 p-3 rounded-lg"><p class="text-3xl">♎</p><p class="text-sm text-gray-400">Vplyv Váh</p></div>
+                            </div>
+                            <div class="absolute top-4 right-4 text-xs text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-full">22.9.2025, 13:56 CEST</div>
+                        </div>
+
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-xl mb-4">Osobnostné Črty</h3>
+                            <div class="flex space-x-2 mb-4 border-b border-gray-700" id="cosmic-tabs">
+                                <!-- Populated via JS -->
+                            </div>
+                            <div id="cosmic-tab-content" class="flex items-start gap-4 transition-opacity duration-300">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-xl mb-4">Numerológia: Životná Cesta 22/4</h3>
+                            <div class="text-center bg-indigo-900/20 p-6 rounded-xl cursor-pointer hover:bg-indigo-900/30 transition-colors" id="calc-toggle">
+                                <p class="text-sm text-indigo-300">Dátum: 22.9.2025</p>
+                                <p class="text-5xl font-bold text-white my-2">22/4</p>
+                                <p class="text-indigo-200 font-semibold">"Master Builder"</p>
+                                <div id="calc-content" class="text-xs text-gray-400 mt-4 text-left overflow-hidden transition-all duration-300" style="max-height: 0; opacity: 0;">
+                                    <p><strong>Deň:</strong> 22 → 2+2 = 4</p>
+                                    <p><strong>Mesiac:</strong> 9</p>
+                                    <p><strong>Rok:</strong> 2+0+2+5 = 9</p>
+                                    <p class="font-bold mt-2"><strong>Súčet:</strong> 4 + 9 + 9 = 22</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                            <h3 class="font-bold text-white text-xl mb-4">Numerologický Profil</h3>
+                            <div class="h-64 relative w-full">
+                                <canvas id="numerologyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8">
+                        <h3 class="font-bold text-white text-xl mb-4 ml-2">Inšpirácie: Majstri Stavitelia (22/4)</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="master-builders-list">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <div class="mt-16">
+                        <div class="bg-gradient-to-tr from-yellow-500/10 via-gray-900 to-indigo-500/10 border border-yellow-400/30 rounded-2xl p-8 shadow-lg">
+                            <div class="text-center">
+                                <h3 class="text-2xl font-bold text-white mb-4">Rezonancia Mena a Narodenia</h3>
+                                <p class="text-yellow-200/80 max-w-3xl mx-auto">
+                                    Oskar ako meno symbolizuje silu a božský mandát. Tvoj dátum narodenia 22.9.2025 pridáva k tejto energii praktický zmysel pre detail a schopnosť stavať mosty medzi snom a realitou.
+                                </p>
+                                <button id="reflect-btn" class="mt-6 bg-yellow-400 text-gray-900 font-bold px-6 py-2 rounded-lg hover:bg-yellow-300 transition-colors">
+                                    Reflektuj
+                                </button>
+                                <p id="reflection-text" class="italic text-gray-300 mt-4 opacity-0 transition-opacity duration-300"></p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Live Age Section -->
+                <section id="vek" class="reveal">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z M12 6v6l4 2" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Presný Vek od Narodenia</h2>
+                            <p class="text-gray-400">Uplynulý čas v reálnom čase</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                        <div class="flex justify-center items-center gap-4 md:gap-8 flex-wrap">
+                            <div class="flex flex-col items-center">
+                                <div class="w-20 h-20 md:w-24 md:h-24 bg-gray-900/70 rounded-lg flex items-center justify-center border border-gray-700/50">
+                                    <span id="age-days" class="text-4xl md:text-5xl font-bold text-yellow-300">00</span>
+                                </div>
+                                <span class="mt-3 text-sm font-semibold text-gray-400 uppercase tracking-wider">Dní</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-20 h-20 md:w-24 md:h-24 bg-gray-900/70 rounded-lg flex items-center justify-center border border-gray-700/50">
+                                    <span id="age-hours" class="text-4xl md:text-5xl font-bold text-yellow-300">00</span>
+                                </div>
+                                <span class="mt-3 text-sm font-semibold text-gray-400 uppercase tracking-wider">Hodín</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-20 h-20 md:w-24 md:h-24 bg-gray-900/70 rounded-lg flex items-center justify-center border border-gray-700/50">
+                                    <span id="age-minutes" class="text-4xl md:text-5xl font-bold text-yellow-300">00</span>
+                                </div>
+                                <span class="mt-3 text-sm font-semibold text-gray-400 uppercase tracking-wider">Minút</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-20 h-20 md:w-24 md:h-24 bg-gray-900/70 rounded-lg flex items-center justify-center border border-gray-700/50">
+                                    <span id="age-seconds" class="text-4xl md:text-5xl font-bold text-yellow-300">00</span>
+                                </div>
+                                <span class="mt-3 text-sm font-semibold text-gray-400 uppercase tracking-wider">Sekúnd</span>
+                            </div>
+                        </div>
+                        <p class="text-center text-sm text-gray-500 mt-8">Dátum narodenia: 22. September 2025, 13:56 CEST</p>
+                    </div>
+                </section>
+
+                <!-- Synthesis Section -->
+                <section id="syntéza" class="reveal">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="bg-yellow-400/10 text-yellow-400 p-3 rounded-xl border border-yellow-400/20">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white tracking-tight">Záverečná syntéza</h2>
+                            <p class="text-gray-400">Spojenie histórie, kultúry a symboliky</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg">
+                        <div class="text-center">
+                            <svg class="w-12 h-12 text-yellow-400 mx-auto mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L8 21M14 3l2 18M3 10h18M3 14h18" /></svg>
+                            <h3 class="text-2xl font-bold text-white">Oskar: Meno s hĺbkou</h3>
+                            <p class="text-gray-300 max-w-3xl mx-auto mt-4">
+                                Identita mena Oskar je fascinujúcou zmesou overiteľnej histórie a subjektívnej mystiky. Je ukotvená v duálnom pôvode, ktorý spája severskú silu „Božej kopije“ s keltskou citlivosťou „milovníka jeleňov“. Jeho cesta dejinami, formovaná literatúrou, kráľmi a kultúrnymi ikonami, mu zaistila globálne uznanie, zatiaľ čo na Slovensku si zachováva status jedinečnosti. Gematrická analýza pridáva ďalšiu, ezoterickú vrstvu, ktorá obohacuje komplexnosť mena o symbolické významy spojené so stvorením, transformáciou a duchovným rastom.
+                            </p>
+                            <div class="mt-8 border-t-2 border-yellow-400/50 w-20 mx-auto pt-8">
+                                <p class="text-lg italic text-gray-400">"Meno s hlbokým historickým odkazom a bohatým symbolickým potenciálom."</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <footer class="text-center p-8 border-t border-gray-800 text-gray-500 text-sm mt-16">
+                <p>&copy; <span id="current-year"></span> Vedomostný Dashboard Mena Oskar. Vytvorené s čistým HTML/JS.</p>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- DATA ---
+        const sectionsData = [
+            { id: 'úvod', label: 'Úvodný panel', iconPath: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" },
+            { id: 'história', label: 'História', iconPath: "M1 4v6h6" },
+            { id: 'etymológia', label: 'Etymológia', iconPath: "M2 12a10 10 0 0 1 10-10v0a10 10 0 0 1 10 10v0a10 10 0 0 1-10 10v0A10 10 0 0 1 2 12v0Z M12 12a10 10 0 0 0 10-10v0" },
+            { id: 'globalita', label: 'Globálna stopa', iconPath: "M21.54 15H17a2 2 0 0 0-2 2v4.54" },
+            { id: 'archetyp', label: 'Archetyp', iconPath: "M16 16l-4-4-4 4M16 8l-4 4-4-4" },
+            { id: 'gematria', label: 'Gematria', iconPath: "M10 3L8 21M14 3l2 18M3 10h18M3 14h18" },
+            { id: 'kozmický-profil', label: 'Kozmický Profil', iconPath: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" },
+            { id: 'vek', label: 'Presný Vek', iconPath: "M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z M12 6v6l4 2" },
+            { id: 'syntéza', label: 'Syntéza', iconPath: "M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" }
+        ];
+
+        const famousOskars = [
+            { name: "Oskar I. Švédsky", field: "História", contribution: "Švédsky a nórsky kráľ, prispel k popularizácii mena.", img: "https://placehold.co/100x100/1f2937/a78bfa?text=OI" },
+            { name: "Oskar Schindler", field: "Humanita", contribution: "Záchrana 1 200 Židov počas holokaustu.", img: "https://placehold.co/100x100/1f2937/a78bfa?text=OS" },
+            { name: "Oscar Wilde", field: "Literatúra", contribution: "Írsky dramatik, autor Portrétu Doriana Graya.", img: "https://placehold.co/100x100/1f2937/a78bfa?text=OW" },
+            { name: "Oskar Kokoschka", field: "Umenie", contribution: "Rakúsky expresionistický maliar.", img: "https://placehold.co/100x100/1f2937/a78bfa?text=OK" },
+            { name: "Oskár Čepan", field: "Literatúra", contribution: "Slovenský literárny kritik a teoretik.", img: "https://placehold.co/100x100/1f2937/a78bfa?text=OČ" },
+            { name: "Oscar Peterson", field: "Hudba", contribution: "Kanadský jazzový pianista a skladateľ.", img: "https://placehold.co/100x100/1f2937/a78bfa?text=OP" }
+        ];
+
+        const variants = [
+            { name: "Oskar", regions: "Nemecko, Poľsko, Česko, Škandinávia" },
+            { name: "Oscar", regions: "Anglicko, Francúzsko, Taliansko, Španielsko" },
+            { name: "Óskar", regions: "Island, Maďarsko" },
+            { name: "Óscar", regions: "Španielsko, Portugalsko" },
+            { name: "Oskari", regions: "Fínsko" }
+        ];
+
+        const gematriaData = [
+            { name: 'Jednoduchá', value: 64, color: '#facc15', desc: "Symbol štruktúry a stability." },
+            { name: '6-násobná', value: 384, color: '#fb923c', desc: "Potenciál pre transformáciu." },
+            { name: 'NAEQ6', value: 34, color: '#60a5fa', desc: "Rovnováha a praktickosť." },
+            { name: 'Židovská', value: 231, color: '#a78bfa', desc: "Signál rastu a pozitívnych zmien." }
+        ];
+
+        const personalityTraits = {
+            'Analýza': { icon: '🔍', title: 'Analýza a detail', description: 'Praktický, systematický, spoľahlivý, orientovaný na zlepšovanie.', color: 'text-blue-400' },
+            'Služba': { icon: '💚', title: 'Služba a etika', description: 'Pomáha iným cez reálne činy, lojálny a zodpovedný.', color: 'text-emerald-400' },
+            'Rovnováha': { icon: '⚖️', title: 'Rovnováha a diplomacia', description: 'Na hranici s Váhami – diplomatickosť, potreba harmónie.', color: 'text-rose-400' },
+            'Výzvy': { icon: '⚠️', title: 'Výzvy a rast', description: 'Perfekcionizmus, prehnaná kontrola, úzkosť z detailov.', color: 'text-amber-400' }
+        };
+
+        const famous22_4 = [
+            { name: "Bill Gates", icon: "🧠", contribution: "Premena vízie o PC na realitu a globálna filantropia.", img: "https://placehold.co/100x100/1e1b4b/c4b5fd?text=BG" },
+            { name: "Paul McCartney", icon: "🎵", contribution: "Staviteľ kultúrnych mostov cez hudbu, ktorá formovala generácie.", img: "https://placehold.co/100x100/1e1b4b/c4b5fd?text=PM" },
+            { name: "Richard Branson", icon: "🚀", contribution: "Budovanie impéria Virgin, od hudby po vesmírne lety.", img: "https://placehold.co/100x100/1e1b4b/c4b5fd?text=RB" },
+            { name: "Dalajláma", icon: "🌍", contribution: "Staviteľ mostov medzi kultúrami a duchovný líder pre mier.", img: "https://placehold.co/100x100/1e1b4b/c4b5fd?text=DL" }
+        ];
+
+        // --- DOM MANIPULATION & LOGIC ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('current-year').textContent = new Date().getFullYear();
+
+            // 1. Render Navigation
+            const renderNav = (containerId) => {
+                const container = document.getElementById(containerId);
+                sectionsData.forEach(section => {
+                    const btn = document.createElement('a');
+                    btn.href = `#${section.id}`;
+                    btn.className = `nav-link flex items-center gap-4 px-4 py-2 rounded-lg text-left transition-colors duration-200 text-gray-400 hover:bg-gray-800 hover:text-white`;
+                    btn.setAttribute('data-target', section.id);
+                    btn.innerHTML = `
+                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${section.iconPath}" /></svg>
+                        <span class="font-medium">${section.label}</span>
+                    `;
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        document.querySelector(btn.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
+                        if(containerId === 'mobile-nav-menu') toggleMobileMenu();
+                    });
+                    container.appendChild(btn);
+                });
+            };
+            renderNav('desktop-nav-menu');
+            renderNav('mobile-nav-menu');
+
+            // Mobile Menu Toggle
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            const mobileNav = document.getElementById('mobile-nav');
+            const menuIcon = document.getElementById('menu-icon');
+            const closeIcon = document.getElementById('close-icon');
+
+            const toggleMobileMenu = () => {
+                mobileNav.classList.toggle('open');
+                menuIcon.classList.toggle('hidden');
+                closeIcon.classList.toggle('hidden');
+            };
+            mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+
+            // Scroll Spy
+            const observerOptions = { rootMargin: '-30% 0px -70% 0px', threshold: 0 };
+            const scrollSpyObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.id;
+                        document.querySelectorAll('.nav-link').forEach(link => {
+                            if (link.getAttribute('data-target') === id) {
+                                link.classList.add('bg-yellow-400/10', 'text-yellow-400');
+                                link.classList.remove('text-gray-400');
+                            } else {
+                                link.classList.remove('bg-yellow-400/10', 'text-yellow-400');
+                                link.classList.add('text-gray-400');
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('section').forEach(section => scrollSpyObserver.observe(section));
+
+            // Reveal Animations
+            const revealObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { rootMargin: '0px 0px -50px 0px', threshold: 0.1 });
+
+            document.querySelectorAll('.reveal, .scale-in').forEach(el => revealObserver.observe(el));
+
+            // 2. Render Famous People
+            const famousContainer = document.getElementById('famous-people-list');
+            famousOskars.forEach(oskar => {
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-4 bg-gray-700/50 p-3 rounded-xl hover:bg-gray-700 transition-colors transform hover:scale-[1.02] duration-200 cursor-pointer";
+                div.innerHTML = `
+                    <img src="${oskar.img}" alt="${oskar.name}" class="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+                    <div>
+                        <p class="font-bold text-white">${oskar.name}</p>
+                        <p class="text-sm text-yellow-400">${oskar.field}</p>
+                        <p class="text-xs text-gray-400 mt-1 hidden sm:block">${oskar.contribution}</p>
+                    </div>
+                `;
+                famousContainer.appendChild(div);
+            });
+
+            // 3. Render Variants (with Search)
+            const variantsContainer = document.getElementById('variants-list');
+            const renderVariants = (filter = '') => {
+                variantsContainer.innerHTML = '';
+                const filtered = variants.filter(v => v.name.toLowerCase().includes(filter) || v.regions.toLowerCase().includes(filter));
+                filtered.forEach(v => {
+                    const div = document.createElement('div');
+                    div.className = "bg-gray-700/50 p-3 rounded-lg";
+                    div.innerHTML = `
+                        <p class="font-bold text-yellow-400">${v.name}</p>
+                        <p class="text-sm text-gray-400">${v.regions}</p>
+                    `;
+                    variantsContainer.appendChild(div);
+                });
+            };
+            renderVariants();
+            document.getElementById('variant-search').addEventListener('input', (e) => renderVariants(e.target.value.toLowerCase()));
+
+            // Map Tooltip Logic
+            const mapTooltip = document.getElementById('map-tooltip');
+            document.querySelectorAll('.map-region').forEach(region => {
+                region.addEventListener('mouseenter', (e) => {
+                    mapTooltip.textContent = e.target.getAttribute('data-name');
+                    mapTooltip.style.opacity = '1';
+                });
+                region.addEventListener('mousemove', (e) => {
+                    // Coordinates relative to bounding box logic or simple offset
+                });
+                region.addEventListener('mouseleave', () => {
+                    mapTooltip.style.opacity = '0';
+                });
+            });
+
+            // 4. Render Gematria Cards
+            const gematriaContainer = document.getElementById('gematria-cards');
+            gematriaData.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "bg-gray-900/50 p-4 rounded-xl text-center relative overflow-hidden";
+                div.innerHTML = `
+                    <div class="absolute -top-2 -right-2 w-16 h-16" style="background-color: ${item.color}; opacity: 0.1; filter: blur(20px);"></div>
+                    <p class="text-sm font-semibold" style="color: ${item.color}">${item.name}</p>
+                    <p class="text-4xl font-bold text-white my-2">${item.value}</p>
+                    <p class="text-xs text-gray-400">${item.desc}</p>
+                `;
+                gematriaContainer.appendChild(div);
+            });
+
+            // 5. Cosmic Profile Tabs
+            const tabsContainer = document.getElementById('cosmic-tabs');
+            const tabContent = document.getElementById('cosmic-tab-content');
+            
+            const renderTabContent = (key) => {
+                const data = personalityTraits[key];
+                tabContent.style.opacity = '0';
+                setTimeout(() => {
+                    tabContent.innerHTML = `
+                        <span class="text-3xl ${data.color}">${data.icon}</span>
+                        <div>
+                            <h4 class="font-bold ${data.color}">${data.title}</h4>
+                            <p class="text-gray-300 text-sm">${data.description}</p>
+                        </div>
+                    `;
+                    tabContent.style.opacity = '1';
+                }, 150);
+            };
+
+            Object.keys(personalityTraits).forEach((key, index) => {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-2 text-sm font-medium transition-colors ${index === 0 ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-400 hover:text-white'}`;
+                btn.textContent = key;
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#cosmic-tabs button').forEach(b => {
+                        b.classList.remove('text-indigo-400', 'border-b-2', 'border-indigo-400');
+                        b.classList.add('text-gray-400');
+                    });
+                    btn.classList.add('text-indigo-400', 'border-b-2', 'border-indigo-400');
+                    btn.classList.remove('text-gray-400');
+                    renderTabContent(key);
+                });
+                tabsContainer.appendChild(btn);
+            });
+            renderTabContent('Analýza');
+
+            // Calculation Toggle
+            const calcToggle = document.getElementById('calc-toggle');
+            const calcContent = document.getElementById('calc-content');
+            calcToggle.addEventListener('click', () => {
+                if (calcContent.style.maxHeight === '0px' || calcContent.style.maxHeight === '') {
+                    calcContent.style.maxHeight = '200px';
+                    calcContent.style.opacity = '1';
+                } else {
+                    calcContent.style.maxHeight = '0px';
+                    calcContent.style.opacity = '0';
+                }
+            });
+
+            // Master Builders List
+            const buildersContainer = document.getElementById('master-builders-list');
+            famous22_4.forEach(person => {
+                const div = document.createElement('div');
+                div.className = "bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-4 text-center hover:border-indigo-400 transition-colors";
+                div.innerHTML = `
+                    <img src="${person.img}" alt="${person.name}" class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-indigo-400/50" />
+                    <h4 class="font-bold text-white">${person.name} <span class="text-lg">${person.icon}</span></h4>
+                    <p class="text-xs text-gray-400 mt-1">${person.contribution}</p>
+                `;
+                buildersContainer.appendChild(div);
+            });
+
+            // Reflection Generator
+            const reflections = [
+                "Sila mena Oskar ťa vedie, zatiaľ čo tvoja cesta 22/4 stavia mosty pre ostatných.",
+                "Ako Panna vidíš detaily, ako Majster Staviteľ staviaš z nich katedrály.",
+                "Tvoja vizionárska energia (22) je uzemnená praktickosťou Panny. Sen sa stáva plánom.",
+                "Meno ti dáva kráľovský mandát, dátum narodenia nástroje na jeho realizáciu."
+            ];
+            const reflectBtn = document.getElementById('reflect-btn');
+            const reflectText = document.getElementById('reflection-text');
+            reflectBtn.addEventListener('click', () => {
+                reflectText.style.opacity = '0';
+                setTimeout(() => {
+                    reflectText.textContent = `"${reflections[Math.floor(Math.random() * reflections.length)]}"`;
+                    reflectText.style.opacity = '1';
+                }, 300);
+            });
+
+            // 6. Live Age Tracker
+            const birthDate = new Date('2025-09-22T13:56:00');
+            const daysEl = document.getElementById('age-days');
+            const hoursEl = document.getElementById('age-hours');
+            const minsEl = document.getElementById('age-minutes');
+            const secsEl = document.getElementById('age-seconds');
+
+            const updateAge = () => {
+                const distance = new Date().getTime() - birthDate.getTime();
+                if (distance < 0) return;
+
+                daysEl.textContent = String(Math.floor(distance / (1000 * 60 * 60 * 24))).padStart(2, '0');
+                hoursEl.textContent = String(Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))).padStart(2, '0');
+                minsEl.textContent = String(Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
+                secsEl.textContent = String(Math.floor((distance % (1000 * 60)) / 1000)).padStart(2, '0');
+            };
+            setInterval(updateAge, 1000);
+            updateAge();
+
+
+            // --- CHART.JS CONFIGURATIONS ---
+            Chart.defaults.color = '#9ca3af';
+            Chart.defaults.font.family = 'ui-sans-serif, system-ui, sans-serif';
+
+            // 1. Popularity Chart (Horizontal Bar)
+            const popCtx = document.getElementById('popularityChart').getContext('2d');
+            new Chart(popCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Švédsko', 'Poľsko', 'Nórsko', 'Fínsko', 'Rakúsko', 'Španielsko', 'Česko'],
+                    datasets: [{
+                        label: 'Popularita',
+                        data: [0.1365, 0.0738, 0.0271, 0.0268, 0.0198, 0.0168, 0.0107],
+                        backgroundColor: '#facc15',
+                        borderRadius: 4,
+                        barThickness: 15
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', borderWidth: 1, padding: 10 }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { border: { display: false }, grid: { display: false } }
+                    }
+                }
+            });
+
+            // 2. Archetype Chart (Radar)
+            const archCtx = document.getElementById('archetypeChart').getContext('2d');
+            new Chart(archCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['Charizma', 'Vodcovstvo', 'Odvaha', 'Citlivosť', 'Optimizmus', 'Žiarlivosť'],
+                    datasets: [{
+                        label: 'Oskar',
+                        data: [90, 85, 95, 70, 80, 40],
+                        backgroundColor: 'rgba(250, 204, 21, 0.4)',
+                        borderColor: '#facc15',
+                        pointBackgroundColor: '#facc15',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', borderWidth: 1 }
+                    },
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            angleLines: { color: '#374151' },
+                            grid: { color: '#374151' },
+                            pointLabels: { color: '#9ca3af', font: { size: 12 } },
+                            ticks: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // 3. Gematria Chart (Bar)
+            const gemCtx = document.getElementById('gematriaChart').getContext('2d');
+            new Chart(gemCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jednoduchá', '6-násobná', 'NAEQ6', 'Židovská'],
+                    datasets: [{
+                        data: [64, 384, 34, 231],
+                        backgroundColor: ['#facc15', '#fb923c', '#60a5fa', '#a78bfa'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#1f2937', borderColor: '#374151', borderWidth: 1 }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { border: { display: false }, grid: { color: '#374151', borderDash: [3, 3] } }
+                    }
+                }
+            });
+
+            // 4. Numerology Chart (Radar)
+            const numCtx = document.getElementById('numerologyChart').getContext('2d');
+            new Chart(numCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['Vízia', 'Disciplína', 'Kreativita', 'Stabilita', 'Duchovný rast'],
+                    datasets: [{
+                        label: 'Profil 22/4',
+                        data: [95, 85, 75, 90, 80],
+                        backgroundColor: 'rgba(167, 139, 250, 0.4)',
+                        borderColor: '#a78bfa',
+                        pointBackgroundColor: '#a78bfa',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#1e1b4b', borderColor: '#4338ca', borderWidth: 1 }
+                    },
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            angleLines: { color: '#374151' },
+                            grid: { color: '#374151' },
+                            pointLabels: { color: '#c4b5fd', font: { size: 12 } },
+                            ticks: { display: false }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
